@@ -145,6 +145,31 @@ if (embCfg.Enabled)
     var wikiFolder = FirstRunSetup.EnsureWikiFolder(
         Path.Combine(AppContext.BaseDirectory, "wiki"));
 
+    // Vérifier qu'au moins un fichier .md ou .txt est présent
+    var wikiFiles = Directory.Exists(wikiFolder)
+        ? Directory.GetFiles(wikiFolder, "*.*", SearchOption.AllDirectories)
+              .Where(f => f.EndsWith(".md",  StringComparison.OrdinalIgnoreCase) ||
+                          f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+              .ToArray()
+        : [];
+
+    if (wikiFiles.Length == 0)
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Panel(
+            $"[red]Le dossier wiki est vide :[/] [bold]{Markup.Escape(wikiFolder)}[/]\n\n" +
+            "Ajoutez au moins un fichier [bold].md[/] ou [bold].txt[/] dans ce dossier,\n" +
+            "puis relancez JanotAI.\n\n" +
+            "[dim]Exemple : notes.md, recettes.txt, projets.md[/]")
+        {
+            Header  = new PanelHeader(" [red]Wiki RAG — Dossier vide[/] "),
+            Border  = BoxBorder.Rounded,
+            Padding = new Padding(1, 0)
+        });
+        AnsiConsole.WriteLine();
+        Environment.Exit(1);
+    }
+
     try
     {
         // Construire le service d'embeddings (Ollama ou tout endpoint OpenAI-compatible)
