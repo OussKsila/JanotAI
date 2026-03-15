@@ -85,15 +85,18 @@ dotnet run
 ```bash
 bash uninstall.sh
 ```
-Removes binaries, launcher commands, and `~/.janotia/config.json`. Your wiki documents are **not** deleted.
+Removes binaries, launcher commands, config, and conversation history. Your wiki documents are **not** deleted.
 
 **Windows:**
 ```powershell
-# Delete the cloned repo
+# Delete the cloned repo (includes binaries and conversation history)
 rmdir /s /q C:\path\to\JanotAI
 
 # Delete the config (API key + wiki folder setting)
 rmdir /s /q "%USERPROFILE%\.janotia"
+
+# Delete any stray conversation history
+del "%USERPROFILE%\conversation_history.json" 2>nul
 ```
 
 ---

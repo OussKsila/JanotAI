@@ -26,7 +26,7 @@ echo -e "${RED}╚════════════════════�
 echo ""
 
 warn "Cette opération va supprimer :"
-echo "  • $INSTALL_DIR  (binaires)"
+echo "  • $INSTALL_DIR  (binaires + historique de conversation)"
 echo "  • $BIN_DIR/janotai  (commande)"
 echo "  • $BIN_DIR/janotai-shell-mcp  (commande)"
 echo "  • $CONFIG_DIR  (clé API + config)"
@@ -65,6 +65,16 @@ if [ -d "$CONFIG_DIR" ]; then
 else
     info "Config introuvable (déjà supprimée ?)."
 fi
+
+# ─── Historique parasite (anciens emplacements) ──────────
+for stray in \
+    "$HOME/conversation_history.json" \
+    "$HOME/.local/share/janotia/conversation_history.json"; do
+    if [ -f "$stray" ]; then
+        rm -f "$stray"
+        success "Historique supprimé : $stray"
+    fi
+done
 
 # ─── Nettoyer le PATH dans shell rc ─────────────────────
 for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
