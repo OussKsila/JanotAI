@@ -105,7 +105,7 @@ switch (llm.Provider.ToLowerInvariant())
             kernelBuilder.AddOpenAIChatCompletion(
                 modelId:    llm.Model,
                 apiKey:     llm.ResolvedApiKey,
-                httpClient: new HttpClient(new MistralCompatibilityHandler())
+                httpClient: new HttpClient(new MistralCompatibilityHandler(llm.ResolvedApiKey))
                 {
                     BaseAddress = new Uri(llm.BaseUrl)
                 });
