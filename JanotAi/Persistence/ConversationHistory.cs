@@ -33,8 +33,20 @@ public class ConversationHistory
             var json    = File.ReadAllText(_filePath);
             var records = JsonSerializer.Deserialize<List<MessageRecord>>(json) ?? [];
 
-            var history = new ChatHistory();
+            // Dédoublonner : supprimer les messages assistant consécutifs identiques
+            var deduped = new List<MessageRecord>();
             foreach (var record in records.TakeLast(_config.MaxMessages))
+            {
+                if (deduped.Count > 0 &&
+                    deduped[^1].Role == record.Role &&
+                    deduped[^1].Content == record.Content)
+                    continue; // doublon consécutif — ignoré
+
+                deduped.Add(record);
+            }
+
+            var history = new ChatHistory();
+            foreach (var record in deduped)
             {
                 if (record.Role == "user")
                     history.AddUserMessage(record.Content);
