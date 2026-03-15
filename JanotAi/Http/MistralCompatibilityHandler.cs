@@ -70,15 +70,70 @@ public class MistralCompatibilityHandler : DelegatingHandler
             }
         }
 
-        var response = await base.SendAsync(request, cancellationToken);
+        return await SendWithRetryAsync(request, cancellationToken);
+    }
 
-        if (!response.IsSuccessStatusCode)
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        int[] delaysSeconds = [2, 5, 15];
+
+        for (int attempt = 0; ; attempt++)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            Console.Error.WriteLine($"[MistralHandler] {(int)response.StatusCode} — {errorBody}");
-            response.Content = new StringContent(errorBody, Encoding.UTF8, "application/json");
+            // On doit recréer le contenu à chaque tentative car il n'est lisible qu'une fois
+            HttpRequestMessage req = request;
+            if (attempt > 0 && request.Content is not null)
+            {
+                // Le contenu a déjà été lu — on relit depuis la copie en mémoire
+                req = await CloneRequestAsync(request, cancellationToken);
+            }
+
+            var response = await base.SendAsync(req, cancellationToken);
+
+            if ((int)response.StatusCode == 429 && attempt < delaysSeconds.Length)
+            {
+                // Lire le header Retry-After s'il est présent
+                int delay = delaysSeconds[attempt];
+                if (response.Headers.TryGetValues("Retry-After", out var values) &&
+                    int.TryParse(values.FirstOrDefault(), out int retryAfter))
+                {
+                    delay = Math.Min(retryAfter + 1, 30);
+                }
+
+                Console.Error.WriteLine(
+                    $"[MistralHandler] 429 — Rate limit. Nouvelle tentative dans {delay}s " +
+                    $"(essai {attempt + 1}/{delaysSeconds.Length})…");
+
+                await Task.Delay(TimeSpan.FromSeconds(delay), cancellationToken);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                Console.Error.WriteLine($"[MistralHandler] {(int)response.StatusCode} — {errorBody}");
+                response.Content = new StringContent(errorBody, Encoding.UTF8, "application/json");
+            }
+
+            return response;
+        }
+    }
+
+    /// <summary>Clone une requête HTTP pour pouvoir la renvoyer après un 429.</summary>
+    private static async Task<HttpRequestMessage> CloneRequestAsync(
+        HttpRequestMessage original, CancellationToken ct)
+    {
+        var clone = new HttpRequestMessage(original.Method, original.RequestUri);
+
+        foreach (var header in original.Headers)
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+        if (original.Content is not null)
+        {
+            var body = await original.Content.ReadAsStringAsync(ct);
+            clone.Content = new StringContent(body, Encoding.UTF8, "application/json");
         }
 
-        return response;
+        return clone;
     }
 }
