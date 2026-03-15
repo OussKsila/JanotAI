@@ -8,11 +8,6 @@ using Spectre.Console;
 
 namespace JanotAi.Agents;
 
-/// <summary>
-/// Boucle de chat interactive avec l'agent.
-/// Utilise IChatCompletionService directement pour éviter les duplications
-/// liées aux bugs de ChatCompletionAgent.InvokeStreamingAsync.
-/// </summary>
 public class AgentRunner
 {
     private readonly ChatCompletionAgent    _agent;
@@ -52,14 +47,12 @@ public class AgentRunner
         };
 #pragma warning restore SKEXP0010
 
-        // ─── Boucle principale ──────────────────────────────────────────────
         while (!ct.IsCancellationRequested)
         {
             var input = AgentConsoleUI.ReadUserInput();
 
             if (string.IsNullOrWhiteSpace(input)) continue;
 
-            // ─── Commandes internes ─────────────────────────────────────────
             switch (input.Trim().ToLowerInvariant())
             {
                 case "exit":
@@ -97,44 +90,43 @@ public class AgentRunner
             }
 
             // ─── Appel au LLM ─────────────────────────────────────────────
-            // Construire l'historique complet avec le system prompt + historique + nouveau message
             var fullHistory = new ChatHistory(_agent.Instructions ?? "");
             foreach (var msg in chatHistory)
                 fullHistory.Add(msg);
             fullHistory.AddUserMessage(input);
 
-            AgentConsoleUI.PrintAgentResponseStart();
-
-            string fullResponse = "";
+            ChatMessageContent? response = null;
 
             try
             {
-                await foreach (var chunk in chatCompletion.GetStreamingChatMessageContentsAsync(
-                    fullHistory, executionSettings, _agent.Kernel, ct))
-                {
-                    if (!string.IsNullOrEmpty(chunk.Content))
+                await AnsiConsole.Status()
+                    .Spinner(Spinner.Known.Dots)
+                    .SpinnerStyle(Style.Parse("cyan"))
+                    .StartAsync("Réflexion en cours...", async _ =>
                     {
-                        AgentConsoleUI.PrintAgentResponseChunk(chunk.Content);
-                        fullResponse += chunk.Content;
-                    }
-                }
+                        response = await chatCompletion.GetChatMessageContentAsync(
+                            fullHistory, executionSettings, _agent.Kernel, ct);
+                    });
 
+                var text = response?.Content ?? "";
+
+                AgentConsoleUI.PrintAgentResponseStart();
+                AgentConsoleUI.PrintAgentResponseChunk(text);
                 AgentConsoleUI.PrintAgentResponseEnd();
 
-                if (!string.IsNullOrEmpty(fullResponse))
+                if (!string.IsNullOrEmpty(text))
                 {
                     chatHistory.AddUserMessage(input);
-                    chatHistory.AddAssistantMessage(fullResponse);
+                    chatHistory.AddAssistantMessage(text);
                     _history.Save(chatHistory);
                 }
             }
             catch (OperationCanceledException)
             {
-                AgentConsoleUI.PrintAgentResponseEnd();
+                AnsiConsole.WriteLine();
             }
             catch (Exception ex)
             {
-                AgentConsoleUI.PrintAgentResponseEnd();
                 AgentConsoleUI.PrintError(ex.Message);
             }
         }
