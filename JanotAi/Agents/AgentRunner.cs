@@ -41,6 +41,11 @@ public class AgentRunner
         if (restored > 0)
             AgentConsoleUI.PrintSuccess($"{restored} message(s) restaurés depuis la session précédente.");
 
+#pragma warning disable SKEXP0110, SKEXP0001
+        // Thread créé une seule fois — gère tout l'historique automatiquement
+        var thread = new ChatHistoryAgentThread(chatHistory);
+#pragma warning restore SKEXP0110, SKEXP0001
+
         // ─── Boucle principale ──────────────────────────────────────────────
         while (!ct.IsCancellationRequested)
         {
@@ -92,7 +97,8 @@ public class AgentRunner
             }
 
             // ─── Appel à l'agent ─────────────────────────────────────────
-            chatHistory.AddUserMessage(input);
+            // On passe le message au thread — il ajoute user + assistant dans chatHistory
+            var userMessage = new ChatMessageContent(AuthorRole.User, input);
 
             AgentConsoleUI.PrintAgentResponseStart();
 
@@ -102,8 +108,7 @@ public class AgentRunner
             try
             {
 #pragma warning disable SKEXP0110, SKEXP0001
-                var thread = new ChatHistoryAgentThread(chatHistory);
-                await foreach (var item in _agent.InvokeStreamingAsync(thread, cancellationToken: ct))
+                await foreach (var item in _agent.InvokeStreamingAsync(userMessage, thread: thread, cancellationToken: ct))
 #pragma warning restore SKEXP0110, SKEXP0001
                 {
                     var chunk = item.Message;
@@ -143,7 +148,6 @@ public class AgentRunner
 
                 AgentConsoleUI.PrintAgentResponseEnd();
 
-                // ChatHistoryAgentThread gère déjà l'ajout de la réponse dans chatHistory
                 if (!string.IsNullOrEmpty(fullResponse))
                     _history.Save(chatHistory);
             }
