@@ -143,11 +143,9 @@ public class AgentRunner
 
                 AgentConsoleUI.PrintAgentResponseEnd();
 
+                // ChatHistoryAgentThread gère déjà l'ajout de la réponse dans chatHistory
                 if (!string.IsNullOrEmpty(fullResponse))
-                {
-                    chatHistory.AddAssistantMessage(fullResponse);
                     _history.Save(chatHistory);
-                }
             }
             catch (OperationCanceledException)
             {
