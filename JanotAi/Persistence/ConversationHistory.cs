@@ -18,8 +18,13 @@ public class ConversationHistory
 
     public ConversationHistory(PersistenceConfig config)
     {
-        _config   = config;
-        _filePath = Path.GetFullPath(config.FilePath);
+        _config = config;
+
+        // Toujours stocker l'historique à côté du binaire,
+        // peu importe le répertoire de travail courant.
+        _filePath = Path.IsPathRooted(config.FilePath)
+            ? config.FilePath
+            : Path.Combine(AppContext.BaseDirectory, config.FilePath);
     }
 
     /// <summary>Charge l'historique depuis le fichier JSON.</summary>
