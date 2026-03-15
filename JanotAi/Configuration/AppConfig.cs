@@ -65,6 +65,9 @@ public class McpServerConfig
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Timeout d'initialisation en secondes (utile pour npx au premier lancement). Défaut : 60s</summary>
+    public int StartupTimeoutSeconds { get; set; } = 60;
+
     public string EffectivePluginName => PluginName ?? Name;
 }
 

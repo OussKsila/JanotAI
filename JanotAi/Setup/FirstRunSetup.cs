@@ -87,59 +87,110 @@ public static class FirstRunSetup
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>Pose la question du dossier wiki et met à jour <paramref name="cfg"/>.</summary>
+    /// <summary>Navigateur interactif de dossiers avec SelectionPrompt.</summary>
     private static void PromptWikiFolder(UserConfig cfg, string? fallback = null)
     {
-        var defaultFolder = cfg.WikiFolder
+        var startDir = cfg.WikiFolder
             ?? fallback
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "JanotAI", "wiki");
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        AnsiConsole.MarkupLine($"[dim]Dossier wiki actuel : {Markup.Escape(defaultFolder)}[/]");
+        if (!Directory.Exists(startDir))
+            startDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        var input = AnsiConsole.Prompt(
-            new TextPrompt<string>("[cyan]Dossier wiki[/] (Entrée = garder la valeur ci-dessus) :")
-                .DefaultValue(defaultFolder)
-                .AllowEmpty());
+        AnsiConsole.MarkupLine("[dim]Naviguez jusqu'au dossier wiki puis sélectionnez [cyan]✓ Choisir ce dossier[/].[/]");
+        AnsiConsole.WriteLine();
 
-        var chosen = string.IsNullOrWhiteSpace(input) ? defaultFolder : input.Trim();
+        var chosen = BrowseFolder(startDir);
+        if (chosen is null) return; // annulé
 
-        if (!Directory.Exists(chosen))
+        cfg.WikiFolder = chosen;
+        AnsiConsole.MarkupLine($"[green]✓ Dossier wiki configuré : {Markup.Escape(chosen)}[/]");
+    }
+
+    /// <summary>
+    /// Navigation interactive par SelectionPrompt. Retourne le dossier choisi ou null si annulé.
+    /// </summary>
+    private static string? BrowseFolder(string startDir)
+    {
+        var current = Path.GetFullPath(startDir);
+
+        while (true)
         {
-            var create = AnsiConsole.Confirm($"Le dossier [yellow]{Markup.Escape(chosen)}[/] n'existe pas. Le créer ?");
-            if (create)
+            AnsiConsole.MarkupLine($"[cyan]📁 {Markup.Escape(current)}[/]");
+
+            var choices = new List<string>();
+            choices.Add("✓  Choisir ce dossier");
+
+            var parent = Directory.GetParent(current)?.FullName;
+            if (parent is not null)
+                choices.Add("↑  Remonter (dossier parent)");
+
+            choices.Add("✏  Saisir un chemin manuellement");
+            choices.Add("✕  Annuler");
+
+            try
             {
-                Directory.CreateDirectory(chosen);
-                AnsiConsole.MarkupLine($"[green]✓ Dossier créé : {Markup.Escape(chosen)}[/]");
+                var subDirs = Directory.GetDirectories(current)
+                    .Select(Path.GetFileName)
+                    .Where(n => n is not null && !n.StartsWith('.'))
+                    .OrderBy(n => n)
+                    .Select(n => $"   {n}/")
+                    .ToList();
+
+                choices.AddRange(subDirs!);
+            }
+            catch { /* accès refusé à certains dossiers */ }
+
+            var selection = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[yellow]Sélectionnez une action ou un sous-dossier :[/]")
+                    .PageSize(15)
+                    .AddChoices(choices));
+
+            if (selection.StartsWith("✓"))
+            {
+                return current;
+            }
+            else if (selection.StartsWith("↑"))
+            {
+                current = parent!;
+            }
+            else if (selection.StartsWith("✏"))
+            {
+                var input = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Chemin du dossier :[/]")
+                        .DefaultValue(current)
+                        .AllowEmpty());
+
+                var typed = string.IsNullOrWhiteSpace(input) ? current : input.Trim();
+
+                if (!Directory.Exists(typed))
+                {
+                    var create = AnsiConsole.Confirm($"Le dossier [yellow]{Markup.Escape(typed)}[/] n'existe pas. Le créer ?");
+                    if (create)
+                    {
+                        Directory.CreateDirectory(typed);
+                        current = typed;
+                    }
+                }
+                else
+                {
+                    current = Path.GetFullPath(typed);
+                }
+            }
+            else if (selection.StartsWith("✕"))
+            {
+                return null;
             }
             else
             {
-                return; // l'utilisateur a refusé, on ne sauvegarde pas
+                // sous-dossier sélectionné — enlever le préfixe "   " et "/"
+                var dirName = selection.Trim().TrimEnd('/');
+                current = Path.Combine(current, dirName);
             }
+
+            AnsiConsole.WriteLine();
         }
-        else
-        {
-            // Vérifier que le dossier ne contient que des .md et .txt
-            var invalidFiles = Directory.GetFiles(chosen, "*.*", SearchOption.AllDirectories)
-                .Where(f => !f.EndsWith(".md",  StringComparison.OrdinalIgnoreCase) &&
-                            !f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
-                .Select(Path.GetFileName)
-                .ToList();
-
-            if (invalidFiles.Count > 0)
-            {
-                AnsiConsole.MarkupLine($"[red]✗ Le dossier contient des fichiers non supportés (uniquement .md et .txt acceptés) :[/]");
-                foreach (var f in invalidFiles.Take(10))
-                    AnsiConsole.MarkupLine($"  [red]• {Markup.Escape(f!)}[/]");
-                if (invalidFiles.Count > 10)
-                    AnsiConsole.MarkupLine($"  [red]... et {invalidFiles.Count - 10} autre(s)[/]");
-
-                AnsiConsole.MarkupLine("[yellow]Veuillez choisir un autre dossier.[/]");
-                PromptWikiFolder(cfg, fallback); // redemande
-                return;
-            }
-        }
-
-        cfg.WikiFolder = chosen;
     }
 
     private static UserConfig Load()

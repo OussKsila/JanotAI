@@ -1,6 +1,7 @@
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol.Transport;
+using ModelContextProtocol;
 using JanotAi.Configuration;
 using Spectre.Console;
 
@@ -93,7 +94,13 @@ public sealed class McpServerRegistry : IAsyncDisposable
         }
 
         var transport = new StdioClientTransport(options);
-        return await McpClientFactory.CreateAsync(transport, cancellationToken: ct);
+
+        var clientOptions = new McpClientOptions
+        {
+            InitializationTimeout = TimeSpan.FromSeconds(config.StartupTimeoutSeconds)
+        };
+
+        return await McpClientFactory.CreateAsync(transport, clientOptions, cancellationToken: ct);
     }
 
     public async ValueTask DisposeAsync()
