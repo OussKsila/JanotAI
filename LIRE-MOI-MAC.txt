@@ -1,0 +1,26 @@
+═══════════════════════════════════════════════════
+  JanotAI — Installation sur Mac
+═══════════════════════════════════════════════════
+
+PREMIÈRE FOIS (une seule fois) :
+
+  1. Ouvre le Terminal (Finder → Applications → Utilitaires → Terminal)
+
+  2. Colle cette commande et appuie sur Entrée :
+     chmod +x ~/Desktop/JanotAI/*.command
+
+     (remplace ~/Desktop/JanotAI par l'endroit où est le dossier)
+
+  3. Double-clique sur  install-mac.command
+     → Si macOS bloque : clic droit → Ouvrir → Ouvrir quand même
+
+  4. Suis les instructions à l'écran (~5-10 minutes)
+     → La clé API et le dossier wiki te seront demandés au premier lancement
+
+───────────────────────────────────────────────────
+
+ENSUITE (chaque jour) :
+
+  → Double-clique sur  janot.command
+
+═══════════════════════════════════════════════════

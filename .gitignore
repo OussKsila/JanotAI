@@ -1,0 +1,47 @@
+# ─── Claude Code ─────────────────────────────────────────────
+.claude/
+
+# ─── .NET ────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.nupkg
+
+# ─── Secrets & données personnelles ─────────────────────────
+# Ne JAMAIS committer ces fichiers
+**/appsettings.local.json
+**/contacts.json
+**/conversation_history.json
+**/wiki.vectors.json
+**/*.secrets.json
+.env
+.env.*
+
+# ─── Wiki (documents personnels) ─────────────────────────────
+**/wiki/
+
+# ─── Docker (non testé) ──────────────────────────────────────
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-entrypoint.sh
+
+# ─── Fly.io (non testé) ──────────────────────────────────────
+fly.toml
+
+# ─── Logs & debug ────────────────────────────────────────────
+*.log
+handler-debug.txt
+audit_log.txt
+
+# ─── OS ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Installer outputs ───────────────────────────────────────
+installer/dist/*.exe
+installer/dist/*.dmg
+installer/Output/
