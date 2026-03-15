@@ -79,6 +79,25 @@ dotnet run
 
 ---
 
+## Uninstall
+
+**macOS / Linux:**
+```bash
+bash uninstall.sh
+```
+Removes binaries, launcher commands, and `~/.janotia/config.json`. Your wiki documents are **not** deleted.
+
+**Windows:**
+```powershell
+# Delete the cloned repo
+rmdir /s /q C:\path\to\JanotAI
+
+# Delete the config (API key + wiki folder setting)
+rmdir /s /q "%USERPROFILE%\.janotia"
+```
+
+---
+
 ## First launch — Setup wizard
 
 On first run, Janot.ia will ask:
@@ -239,6 +258,7 @@ JanotAI/
 │       ├── ShellCommandTools.cs # Windows + cross-platform tools
 │       └── MacOsTools.cs        # macOS-specific tools
 ├── install.sh                   # macOS/Linux install script
+├── uninstall.sh                 # macOS/Linux uninstall script
 └── .gitignore
 ```
 
