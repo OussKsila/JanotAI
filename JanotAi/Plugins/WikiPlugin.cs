@@ -13,9 +13,9 @@ public class WikiPlugin(SimpleVectorMemory memory)
 {
     [KernelFunction("search_wiki")]
     [Description(
-        "Recherche des informations dans la base de connaissances personnelle (documents wiki). " +
-        "Utilise cette fonction quand l'utilisateur pose une question sur ses propres documents, " +
-        "procédures, notes ou connaissances personnelles indexées.")]
+        "Recherche des informations dans la base de connaissances personnelle de l'utilisateur (notes, recettes, projets, contacts, commandes, etc.). " +
+        "TOUJOURS appeler cette fonction en premier quand l'utilisateur pose une question sur un sujet qui pourrait être dans ses documents. " +
+        "Exemples : recettes, ingrédients, contacts, projets, commandes, procédures, idées, notes personnelles.")]
     public async Task<string> SearchWikiAsync(
         [Description("La question ou le sujet à rechercher dans les documents")]
         string query,
@@ -23,7 +23,7 @@ public class WikiPlugin(SimpleVectorMemory memory)
         [Description("Nombre maximum de passages à retourner (1-8, défaut 4)")]
         int maxResults = 4)
     {
-        var results = await memory.SearchAsync(query, limit: maxResults, minScore: 0.50);
+        var results = await memory.SearchAsync(query, limit: maxResults, minScore: 0.40);
 
         if (results.Count == 0)
             return "Aucun document pertinent trouvé dans le wiki. " +
