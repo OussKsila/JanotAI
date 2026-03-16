@@ -19,10 +19,14 @@ public class MistralCompatibilityHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        // Injecter la clé si absente (SDK OpenAI parfois ne la transmet pas avec un HttpClient custom)
-        if (_apiKey is not null && !request.Headers.Contains("Authorization"))
+        // Toujours forcer notre clé — le SDK OpenAI avec HttpClient custom peut injecter
+        // un header vide ou incorrect. On écrase pour garantir la bonne valeur.
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            request.Headers.Remove("Authorization");
             request.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+        }
 
         if (request.Content is not null)
         {

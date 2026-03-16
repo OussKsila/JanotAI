@@ -21,11 +21,14 @@ public class LlmConfig
     public string? AzureEndpoint { get; set; }
 
     public string ResolvedApiKey =>
-        ApiKey
-        ?? Environment.GetEnvironmentVariable("MISTRAL_API_KEY")
-        ?? ReadFromRegistry("MISTRAL_API_KEY")
-        ?? JanotAi.Setup.FirstRunSetup.LoadSavedApiKey()
+        NullIfEmpty(ApiKey)
+        ?? NullIfEmpty(Environment.GetEnvironmentVariable("MISTRAL_API_KEY"))
+        ?? NullIfEmpty(ReadFromRegistry("MISTRAL_API_KEY"))
+        ?? NullIfEmpty(JanotAi.Setup.FirstRunSetup.LoadSavedApiKey())
         ?? "";
+
+    private static string? NullIfEmpty(string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s;
 
     private static string? ReadFromRegistry(string name)
     {

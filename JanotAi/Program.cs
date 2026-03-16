@@ -21,9 +21,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
-using Microsoft.SemanticKernel.Embeddings;
 using JanotAi.Agents;
 using JanotAi.Configuration;
 using JanotAi.Mcp;
@@ -54,6 +54,14 @@ if (string.IsNullOrWhiteSpace(llm.ApiKey))
 // Premier lancement : wizard interactif si aucune clé trouvée
 if (llm.Provider.ToLower() != "ollama")
     llm.ApiKey = FirstRunSetup.RunIfNeeded(llm.ResolvedApiKey);
+
+// ─── Authentification ────────────────────────────────────────────────────────
+var accountName = AuthManager.LoginOrRegister();
+var accountDir  = FirstRunSetup.GetAccountDir(accountName);
+Directory.CreateDirectory(accountDir);
+
+// Chaque compte a son propre historique de conversation
+appConfig.Persistence.FilePath = Path.Combine(accountDir, "conversation_history.json");
 
 // ─── 2. Kernel Semantic Kernel ───────────────────────────────────────────────
 await AnsiConsole.Status()
@@ -141,8 +149,9 @@ var embCfg = appConfig.Embeddings;
 
 if (embCfg.Enabled)
 {
-    // Dossier wiki : config utilisateur (~/.janotia/config.json) > demande interactif > fallback local
-    var wikiFolder = FirstRunSetup.EnsureWikiFolder(
+    // Dossier wiki : config du compte > demande interactif > fallback local
+    var wikiFolder = FirstRunSetup.EnsureAccountWikiFolder(
+        accountName,
         Path.Combine(AppContext.BaseDirectory, "wiki"));
 
     // Vérifier qu'au moins un fichier .md ou .txt est présent
@@ -172,36 +181,26 @@ if (embCfg.Enabled)
 
     try
     {
-        // Construire le service d'embeddings (Ollama ou tout endpoint OpenAI-compatible)
-        // Le slash final est obligatoire pour que HttpClient résolve correctement /embeddings
-        static string EnsureTrailingSlash(string url) =>
-            url.EndsWith('/') ? url : url + "/";
-
         var embBaseUrl = embCfg.Provider.Equals("ollama", StringComparison.OrdinalIgnoreCase)
-            ? EnsureTrailingSlash((embCfg.BaseUrl ?? "http://localhost:11434") + "/v1")
-            : EnsureTrailingSlash(embCfg.BaseUrl ?? llm.BaseUrl ?? "");
+            ? (embCfg.BaseUrl ?? "http://localhost:11434") + "/v1"
+            : embCfg.BaseUrl ?? llm.BaseUrl ?? "";
 
-        var embApiKey = embCfg.ApiKey
-            ?? (embCfg.Provider.Equals("ollama", StringComparison.OrdinalIgnoreCase)
-                ? "ollama" : llm.ResolvedApiKey);
+        var embApiKey = string.IsNullOrWhiteSpace(embCfg.ApiKey)
+            ? (embCfg.Provider.Equals("ollama", StringComparison.OrdinalIgnoreCase)
+                ? "ollama" : llm.ResolvedApiKey)
+            : embCfg.ApiKey;
 
-#pragma warning disable SKEXP0010, SKEXP0001
-        var embHttpClient = new HttpClient(new JanotAi.Http.MistralCompatibilityHandler(embApiKey))
-        {
-            BaseAddress = new Uri(embBaseUrl)
-        };
 
+#pragma warning disable SKEXP0001
+        // Service d'embeddings direct HTTP — bypass SDK OpenAI pour éviter les conflits d'auth
         ITextEmbeddingGenerationService embService =
-            new Microsoft.SemanticKernel.Connectors.OpenAI.OpenAITextEmbeddingGenerationService(
-                modelId:    embCfg.Model,
-                apiKey:     embApiKey,
-                httpClient: embHttpClient);
-#pragma warning restore SKEXP0010, SKEXP0001
+            new JanotAi.Http.MistralEmbeddingService(embCfg.Model, embApiKey, embBaseUrl);
+#pragma warning restore SKEXP0001
 
         var wikiMemory = new SimpleVectorMemory(embService);
 
-        // Indexer les documents au démarrage (avec cache disque)
-        var wikiCache = Path.Combine(AppContext.BaseDirectory, "wiki.vectors.json");
+        // Cache des vecteurs propre à ce compte
+        var wikiCache = Path.Combine(accountDir, "wiki.vectors.json");
         int chunks = await WikiIndexer.IndexAsync(wikiMemory, wikiFolder, wikiCache);
 
         kernel.Plugins.AddFromObject(new WikiPlugin(wikiMemory), "Wiki");
@@ -252,10 +251,11 @@ var runner       = new AgentRunner(mainAgent, multiAgent, persistence);
 // ─── 7. Affichage du header ──────────────────────────────────────────────────
 var totalTools = kernel.Plugins.Sum(p => p.Count());
 AgentConsoleUI.PrintHeader(
-    agentName:  agent_cfg.Name,
-    provider:   llm.Provider,
-    model:      llm.Model,
-    toolCount:  totalTools);
+    agentName:   agent_cfg.Name,
+    provider:    llm.Provider,
+    model:       llm.Model,
+    toolCount:   totalTools,
+    accountName: accountName);
 
 // ─── 8. Résumé des serveurs chargés ─────────────────────────────────────────
 foreach (var (name, desc, toolCount) in mcpRegistry.ServerSummaries)

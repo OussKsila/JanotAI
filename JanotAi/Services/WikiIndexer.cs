@@ -43,18 +43,13 @@ public static class WikiIndexer
         }
 
         // ── Re-indexer depuis les fichiers ───────────────────────────────────
-        int total = 0;
-        foreach (var file in files)
-        {
-            foreach (var chunk in GetChunks(file))
-            {
-                await memory.SaveAsync(
-                    id:          chunk.Id,
-                    text:        chunk.Content,
-                    description: $"[{chunk.Source}] {chunk.Section}".TrimEnd());
-                total++;
-            }
-        }
+        // Collecter tous les chunks d'abord, puis vectoriser en batch (1 seul appel API)
+        var allChunks = files.SelectMany(GetChunks).ToList();
+
+        if (allChunks.Count > 0)
+            await memory.SaveBatchAsync(allChunks);
+
+        int total = allChunks.Count;
 
         // ── Sauvegarder le cache ─────────────────────────────────────────────
         if (cacheFile is not null && total > 0)

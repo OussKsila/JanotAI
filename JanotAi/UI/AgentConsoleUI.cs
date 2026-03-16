@@ -22,7 +22,7 @@ public static class AgentConsoleUI
         @"",
     ];
 
-    public static void PrintHeader(string agentName, string provider, string model, int toolCount, bool multiAgent = false)
+    public static void PrintHeader(string agentName, string provider, string model, int toolCount, bool multiAgent = false, string? accountName = null)
     {
         AnsiConsole.Clear();
 
@@ -36,11 +36,15 @@ public static class AgentConsoleUI
         grid.AddColumn();
         grid.AddColumn();
         grid.AddColumn();
+        grid.AddColumn();
 
         grid.AddRow(
             new Markup($"[dim]Agent:[/]  [bold cyan]{Markup.Escape(agentName)}[/]"),
             new Markup($"[dim]LLM:[/]    [bold]{Markup.Escape(provider)}/{Markup.Escape(model)}[/]"),
             new Markup($"[dim]Outils:[/] [bold green]{toolCount}[/]"),
+            new Markup(accountName is not null
+                ? $"[dim]Compte:[/] [bold magenta]{Markup.Escape(accountName)}[/]"
+                : ""),
             new Markup(multiAgent ? "[bold yellow]⚡ Multi-Agents[/]" : "[dim]Mode: Simple[/]")
         );
 
@@ -60,8 +64,47 @@ public static class AgentConsoleUI
 
     public static string ReadUserInput()
     {
-        AnsiConsole.Markup("[bold cyan]Vous[/] [dim]›[/] ");
-        return Console.ReadLine() ?? "";
+        AnsiConsole.Markup("[dim](  /  commandes)[/]  [bold cyan]Vous[/] [dim]›[/] ");
+
+        var buffer = new System.Text.StringBuilder();
+
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+
+            // Entrée → valider
+            if (key.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                return buffer.ToString();
+            }
+
+            // Backspace
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (buffer.Length > 0)
+                {
+                    buffer.Remove(buffer.Length - 1, 1);
+                    Console.Write("\b \b");
+                }
+                continue;
+            }
+
+            // "/" en première position → ouvrir le picker instantanément
+            if (key.KeyChar == '/' && buffer.Length == 0)
+            {
+                Console.WriteLine();
+                var picked = ShowCommandPicker();
+                return picked ?? "";
+            }
+
+            // Caractère normal
+            if (key.KeyChar != '\0')
+            {
+                buffer.Append(key.KeyChar);
+                Console.Write(key.KeyChar);
+            }
+        }
     }
 
     public static void PrintAgentResponseStart()
@@ -126,6 +169,7 @@ public static class AgentConsoleUI
         table.AddRow("[cyan]/clear[/]",   "Effacer l'historique de conversation");
         table.AddRow("[cyan]/multi[/]",   "Mode multi-agents (tâche complexe)");
         table.AddRow("[cyan]/history[/]", "Voir le nombre de messages en mémoire");
+        table.AddRow("[cyan]/switch[/]",  "Changer de compte (relance le sélecteur)");
         table.AddRow("[red]exit[/]",      "Quitter l'application");
         table.AddEmptyRow();
         table.AddRow("[dim]Exemples[/]",  "[dim]\"Exécute ipconfig\"[/]");
@@ -184,6 +228,51 @@ public static class AgentConsoleUI
     public static void PrintSuccess(string message)
     {
         AnsiConsole.MarkupLine($"[green]✓[/] {Markup.Escape(message)}");
+    }
+
+    // ─── Sélecteur de commandes interactif ───────────────────────────────────
+
+    private static readonly (string Command, string Description, string Icon)[] Commands =
+    [
+        ("/help",    "Afficher l'aide",                          "📖"),
+        ("/tools",   "Lister tous les outils disponibles",       "🔧"),
+        ("/clear",   "Effacer l'historique de conversation",     "🗑 "),
+        ("/history", "Voir le nombre de messages en mémoire",    "📜"),
+        ("/multi",   "Mode multi-agents (tâche complexe)",       "⚡"),
+        ("/switch",  "Changer de compte",                        "🔄"),
+        ("exit",     "Quitter JanotAI",                         "🚪"),
+    ];
+
+    /// <summary>
+    /// Affiche un sélecteur interactif de commandes.
+    /// Retourne la commande choisie (ex: "/help") ou null si annulé.
+    /// </summary>
+    public static string? ShowCommandPicker()
+    {
+        AnsiConsole.WriteLine();
+
+        var choices = Commands
+            .Select(c => $"{c.Icon}  [bold]{c.Command,-10}[/] [dim]{c.Description}[/]")
+            .Append("[dim]✕  Annuler[/]")
+            .ToList();
+
+        var raw = Commands
+            .Select(c => c.Command)
+            .Append("__cancel__")
+            .ToArray();
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[yellow]Choisissez une commande :[/]")
+                .PageSize(10)
+                .UseConverter(s => s)
+                .AddChoices(choices));
+
+        var idx = choices.IndexOf(selected);
+        var cmd = raw[idx];
+
+        AnsiConsole.WriteLine();
+        return cmd == "__cancel__" ? null : cmd;
     }
 
     // ─── Multi-agent ─────────────────────────────────────────────────────────

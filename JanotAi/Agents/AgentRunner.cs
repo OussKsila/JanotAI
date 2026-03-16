@@ -53,7 +53,16 @@ public class AgentRunner
 
             if (string.IsNullOrWhiteSpace(input)) continue;
 
-            switch (input.Trim().ToLowerInvariant())
+            // Sélecteur interactif quand l'utilisateur tape "/"
+            var trimmed = input.Trim();
+            if (trimmed == "/")
+            {
+                var picked = AgentConsoleUI.ShowCommandPicker();
+                if (picked is null) continue;
+                trimmed = picked;
+            }
+
+            switch (trimmed.ToLowerInvariant())
             {
                 case "exit":
                 case "quit":
@@ -79,6 +88,11 @@ public class AgentRunner
                     AgentConsoleUI.PrintHistory(chatHistory.Count, _history.HasSavedHistory);
                     continue;
 
+                case "/switch":
+                    _history.Save(chatHistory);
+                    AnsiConsole.MarkupLine("\n[dim]Déconnexion — relancez JanotAI pour vous connecter avec un autre compte.[/]");
+                    return;
+
                 case "/multi":
                     var task = AgentConsoleUI.ReadMultiAgentTask();
                     if (!string.IsNullOrWhiteSpace(task))
@@ -93,7 +107,7 @@ public class AgentRunner
             var fullHistory = new ChatHistory(_agent.Instructions ?? "");
             foreach (var msg in chatHistory)
                 fullHistory.Add(msg);
-            fullHistory.AddUserMessage(input);
+            fullHistory.AddUserMessage(trimmed);
 
             ChatMessageContent? response = null;
 
@@ -116,7 +130,7 @@ public class AgentRunner
 
                 if (!string.IsNullOrEmpty(text))
                 {
-                    chatHistory.AddUserMessage(input);
+                    chatHistory.AddUserMessage(trimmed);
                     chatHistory.AddAssistantMessage(text);
                     _history.Save(chatHistory);
                 }

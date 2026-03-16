@@ -25,8 +25,29 @@ public class SimpleVectorMemory
     public async Task SaveAsync(string id, string text, string description = "")
     {
         var vec = await _embedder.GenerateEmbeddingAsync(text);
-        _store.RemoveAll(e => e.Id == id);            // idempotent
+        _store.RemoveAll(e => e.Id == id);
         _store.Add(new Entry(id, description, text, vec));
+    }
+
+    /// <summary>
+    /// Vectorise tous les chunks en UN SEUL appel API (batch).
+    /// Mistral embeddings accepte jusqu'à 2048 textes par requête.
+    /// </summary>
+    public async Task SaveBatchAsync(IEnumerable<WikiChunk> chunks)
+    {
+        var list = chunks.ToList();
+        if (list.Count == 0) return;
+
+        var texts = list.Select(c => c.Content).ToList();
+        var vecs  = await _embedder.GenerateEmbeddingsAsync(texts);
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            var chunk = list[i];
+            var desc  = $"[{chunk.Source}] {chunk.Section}".TrimEnd();
+            _store.RemoveAll(e => e.Id == chunk.Id);
+            _store.Add(new Entry(chunk.Id, desc, chunk.Content, vecs[i]));
+        }
     }
 
     // ── Recherche ────────────────────────────────────────────────────────────
