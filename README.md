@@ -1,8 +1,8 @@
-# Janot.ia
+# JanotAI
 
 An AI agent that runs directly in your terminal and controls your computer. Built with [Semantic Kernel](https://github.com/microsoft/semantic-kernel), powered by [Mistral AI](https://mistral.ai), and extensible via [MCP servers](https://modelcontextprotocol.io).
 
-> Responds in Tunisian dialect by default — customizable in `appsettings.json`.
+> Responds in the same language you write in — customizable in `appsettings.json`.
 
 ---
 
@@ -14,6 +14,7 @@ An AI agent that runs directly in your terminal and controls your computer. Buil
 - **RAG on your documents** — index your `.md` and `.txt` files, answer questions about them
 - **YouTube transcription** — summarize any YouTube video
 - **Multi-agent mode** — `/multi` command for complex tasks requiring planning + execution
+- **Multi-account** — each user has their own conversation history, wiki vectors, and documents folder
 
 ---
 
@@ -22,7 +23,7 @@ An AI agent that runs directly in your terminal and controls your computer. Buil
 | Requirement | Version | Download |
 |---|---|---|
 | .NET | 8.0+ | [dotnet.microsoft.com](https://dotnet.microsoft.com/download) |
-| Mistral API key | — | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
+| Mistral API key | — | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) *(free tier available)* |
 | Node.js *(optional)* | 18+ | [nodejs.org](https://nodejs.org) — only for YouTube transcription |
 
 ---
@@ -75,7 +76,7 @@ cd JanotAI\JanotAi
 dotnet run
 ```
 
-> On first launch, a setup wizard will ask for your Mistral API key and your documents folder.
+> On first launch, a setup wizard will ask for your Mistral API key, then prompt you to log in or create an account.
 
 ---
 
@@ -89,41 +90,77 @@ Removes binaries, launcher commands, config, and conversation history. Your wiki
 
 **Windows:**
 ```powershell
-# Delete the cloned repo (includes binaries and conversation history)
+# Delete the cloned repo (includes binaries)
 rmdir /s /q C:\path\to\JanotAI
 
-# Delete the config (API key + wiki folder setting)
+# Delete config, accounts, and API key
 rmdir /s /q "%USERPROFILE%\.janotia"
-
-# Delete any stray conversation history
-del "%USERPROFILE%\conversation_history.json" 2>nul
 ```
 
 ---
 
 ## First launch — Setup wizard
 
-On first run, Janot.ia will ask:
+On first run, JanotAI will:
+
+1. **Ask for your Mistral API key** (stored in `~/.janotia/config.json`, never committed to git)
+2. **Show the login screen** — create an account or log in
+3. **Ask for your documents folder** (per account, on first login)
 
 ```
-Step 1/2 — Mistral API key
-  Get your key at: https://console.mistral.ai/api-keys
-  Mistral API Key › ****************
+JanotAI — Authentification
 
-Step 2/2 — Documents folder (RAG)
-  Path to folder (e.g. ~/Documents/notes) › ~/Documents/notes
-  ✅ Folder configured: /Users/you/Documents/notes
+  > Se connecter
+  > Créer un compte        ← first time
+  > Quitter
 
-✅ Configuration saved to ~/.janotia/config.json
+Création de compte
+  Votre prénom / pseudo  : Alice
+  Identifiant (login)    : alice
+  Mot de passe           : ********    (min 8 chars, 1 uppercase, 1 digit)
+  Confirmez              : ********
+
+✓ Compte créé : Alice (alice)
 ```
 
-The configuration is stored in **`~/.janotia/config.json`** — never in the project directory, never committed to git.
+---
 
-To reconfigure, delete `~/.janotia/config.json` and relaunch.
+## Multi-account
+
+Each account is fully isolated:
+
+```
+~/.janotia/
+├── config.json                        ← API key (shared)
+└── accounts/
+    └── alice/
+        ├── auth.json                  ← hashed credentials (PBKDF2-SHA256)
+        ├── account.json               ← wiki folder path
+        ├── conversation_history.json  ← conversation history
+        └── wiki.vectors.json          ← RAG vector cache
+```
+
+Switch account: type `/switch` or press `/` and select **Switch account**, then restart JanotAI.
 
 ---
 
 ## Usage
+
+Press `/` to open the **interactive command picker** instantly:
+
+```
+Choisissez une commande :
+❯ 📖  /help       Afficher l'aide
+  🔧  /tools      Lister tous les outils disponibles
+  🗑   /clear      Effacer l'historique de conversation
+  📜  /history    Voir le nombre de messages en mémoire
+  ⚡  /multi      Mode multi-agents (tâche complexe)
+  🔄  /switch     Changer de compte
+  🚪  exit        Quitter JanotAI
+  ✕   Annuler
+```
+
+Or type commands directly:
 
 ```
 /help      — show all commands
@@ -131,6 +168,7 @@ To reconfigure, delete `~/.janotia/config.json` and relaunch.
 /multi     — multi-agent mode (complex tasks)
 /clear     — clear conversation history
 /history   — show history info
+/switch    — log out and switch account
 exit       — quit (history is auto-saved)
 ```
 
@@ -149,25 +187,19 @@ exit       — quit (history is auto-saved)
 
 ## RAG — Knowledge base
 
-Janot.ia indexes your `.md` and `.txt` files with Mistral embeddings (`mistral-embed`).
+JanotAI indexes your `.md` and `.txt` files with Mistral embeddings (`mistral-embed`).
 
-**Setup at first launch** — you'll be asked for your documents folder path.
+- All documents are sent to Mistral in a **single batch call** at startup
+- The vector cache is stored per account in `~/.janotia/accounts/{name}/wiki.vectors.json`
+- Cache is automatically invalidated when you add or modify files
 
-**Change folder later** — edit `~/.janotia/config.json`:
-```json
-{
-  "MistralApiKey": "your-key-here",
-  "WikiFolder": "/path/to/your/documents"
-}
-```
-
-**Re-index after adding documents** — delete the cache file and restart:
+**Re-index after adding documents** — delete the cache and restart:
 ```bash
 # macOS/Linux
-rm ~/.local/share/janotia/app/wiki.vectors.json
+rm ~/.janotia/accounts/{your-account}/wiki.vectors.json
 
 # Windows
-del "%APPDATA%\JanotIA\wiki.vectors.json"
+del "%USERPROFILE%\.janotia\accounts\{your-account}\wiki.vectors.json"
 ```
 
 Supported formats: `.md` (Markdown), `.txt` (plain text). Subdirectories are scanned recursively.
@@ -176,7 +208,7 @@ Supported formats: `.md` (Markdown), `.txt` (plain text). Subdirectories are sca
 
 ## Configuration
 
-The main config file is `appsettings.json` next to the binary. The API key is **not** stored here — it lives in `~/.janotia/config.json`.
+The main config file is `appsettings.json` next to the binary. The API key is **not** stored here.
 
 ```jsonc
 {
@@ -187,14 +219,16 @@ The main config file is `appsettings.json` next to the binary. The API key is **
     "BaseUrl": "https://api.mistral.ai/v1"
   },
   "Agent": {
-    "Name": "Janot.ia",
+    "Name": "JanotAi",
     "Instructions": "..."          // customize personality / language here
   },
   "Embeddings": {
     "Enabled": true,
+    "Provider": "mistral",
     "Model": "mistral-embed",
     "BaseUrl": "https://api.mistral.ai/v1"
-  }
+  },
+  "McpServers": [ ... ]
 }
 ```
 
@@ -233,11 +267,12 @@ Any MCP-compatible server can be plugged in via `appsettings.json`:
 
 ## Security
 
-- **Shell blocklist** — dangerous commands are blocked before execution: `rm -rf /`, disk formatting, registry edits, firewall changes, privilege escalation, fork bombs, and more
-- **Prompt injection filter** — content from external sources (YouTube, web, wiki) is scanned for injection attempts before being returned to the LLM
-- **Destructive action warnings** — the agent explicitly warns before any irreversible operation
+- **Authentication** — PBKDF2-SHA256 (100,000 iterations), unique 256-bit salt per account, constant-time comparison, account lockout after 5 failed attempts
+- **Shell blocklist** — dangerous commands blocked before execution: `rm -rf /`, disk formatting, registry edits, privilege escalation, fork bombs, and more
+- **Prompt injection filter** — content from external sources scanned for injection attempts
+- **Destructive action warnings** — agent warns before any irreversible operation
 - **API keys never in git** — stored in `~/.janotia/config.json` outside the project
-- **macOS command escaping** — all user-provided arguments to shell commands are properly escaped to prevent injection
+- **Per-account isolation** — each account has its own history, vectors, and wiki folder
 
 ---
 
@@ -249,12 +284,12 @@ JanotAI/
 │   ├── Agents/                  # AgentRunner, MultiAgentOrchestrator
 │   ├── Configuration/           # AppConfig (appsettings.json binding)
 │   ├── Filters/                 # SecurityCommandFilter, AuditLogFilter
-│   ├── Http/                    # MistralCompatibilityHandler
+│   ├── Http/                    # MistralCompatibilityHandler, MistralEmbeddingService
 │   ├── Mcp/                     # MCP server registry + plugin loader
 │   ├── Persistence/             # Conversation history (JSON)
-│   ├── Plugins/                 # Built-in SK plugins (Shell, WhatsApp, etc.)
+│   ├── Plugins/                 # Built-in SK plugins (Shell, WhatsApp, Wiki, etc.)
 │   ├── Services/                # SimpleVectorMemory + WikiIndexer (RAG)
-│   ├── Setup/                   # FirstRunSetup wizard
+│   ├── Setup/                   # FirstRunSetup wizard + AuthManager
 │   └── UI/                      # Spectre.Console terminal UI
 ├── ShellMcpServer/              # MCP server: shell, files, system, macOS tools
 │   └── Tools/
